@@ -4,10 +4,27 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 
+const config = require('./config');
+const MongoClient = require('mongodb').MongoClient;
+const cors = require('cors');
+
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 
 var app = express();
+//mongo connection using module-exports from config.js
+MongoClient.connect(`mongodb://${config.dbHost}`, { 
+  //for backwards compitability and deprecations
+useNewUrlParser: true, useUnifiedTopology: true })
+  .then(client => {
+    const db = client.db(config.dbName);
+    //used for queries against MongoDB
+    const collection = db.collection(config.dbCollection);    
+    app.locals[config.dbCollection] = collection;
+  })
+  .catch(error => {
+    console.log(error);
+  });
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -18,6 +35,17 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+// essential
+app.use(cors());
+
+
+//middleware for availability of collection through all the roots
+//retrieve collection from app.locals
+app.use((req, res, next) => {
+  const collection = req.app.locals[config.dbCollection];
+  req.collection = collection;
+  next();
+});
 
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
